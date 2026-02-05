@@ -3,14 +3,23 @@ const list=document.querySelector("#content");
 
 function updateContent() {
     list.innerHTML = "";
-    console.log(list)
     browser.tabGroups.query({windowId: myWindowId})
 	.then((tabGroups) => {
-	    console.log(tabGroups)
-	    tabGroups.forEach(tabGroups => {
+	    tabGroups.forEach(tabGroup => {
 		const li = document.createElement("li");
-		li.textContent = tabGroups.title;
+		const button = document.createElement("button");
+		button.textContent=tabGroup.title;
+		li.appendChild(button);
 		list.appendChild(li);
+
+		button.addEventListener("click", () => {
+		    browser.runtime.sendMessage({
+			type: "SWITCH_TO_GROUP",
+			payload: {
+			    groupId: tabGroup.id
+			}
+		    });
+		});
 	    });
 	});
 }
