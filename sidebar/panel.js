@@ -2,6 +2,8 @@ let myWindowId;
 const list=document.querySelector("#content");
 
 function updateContent() {
+    list.innerHTML = "";
+    console.log(list)
     browser.tabGroups.query({windowId: myWindowId})
 	.then((tabGroups) => {
 	    console.log(tabGroups)
