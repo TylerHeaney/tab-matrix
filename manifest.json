@@ -1,0 +1,18 @@
+{
+  "manifest_version": 2,
+  "name": "Tab Matrix",
+  "version": "0.0.1",
+
+  "description": "This extension implements a 2-dimensional matrix model for tab organization: tabs are organized horizontally while groups are organized vertically",
+
+  "icons": {
+    "48": "icons/border-48.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["*://*.mozilla.org/*"],
+      "js": ["borderify.js"]
+    }
+  ]
+}
