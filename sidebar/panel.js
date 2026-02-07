@@ -1,16 +1,17 @@
 let myWindowId;
-const list=document.querySelector("#content");
+let list=document.querySelector("#content");
 
 function updateContent() {
-    list.innerHTML = "";
+    console.log("updateC");
     browser.tabGroups.query({windowId: myWindowId})
 	.then((tabGroups) => {
+	    let newList=document.createElement("ul");
 	    tabGroups.forEach(tabGroup => {
 		const li = document.createElement("li");
 		const button = document.createElement("button");
 		button.textContent=tabGroup.title;
 		li.appendChild(button);
-		list.appendChild(li);
+		newList.appendChild(li);
 
 		button.addEventListener("click", () => {
 		    browser.runtime.sendMessage({
@@ -21,11 +22,14 @@ function updateContent() {
 		    });
 		});
 	    });
+	    list.replaceChildren(...newList.childNodes);
 	});
 }
 
-browser.tabs.onActivated.addListener(updateContent);
-
+browser.tabGroups.onCreated.addListener(updateContent);
+browser.tabGroups.onRemoved.addListener(updateContent);
+browser.tabGroups.onUpdated.addListener(updateContent);
+browser.tabGroups.onMoved.addListener(updateContent);
 browser.windows.getCurrent({populate: true}).then((windowInfo) => {
   myWindowId = windowInfo.id;
   updateContent();
