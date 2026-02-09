@@ -5,19 +5,20 @@ console.log("Init")
  * Collapses all groups and uncollapses active group
  */
 async function switchToGroup(payload) {
-    console.log("test")
     const tabs = await browser.tabs.query({ groupId: payload.groupId });
     if (tabs.length > 0) {
 	const newTab = tabs[0];
 	await browser.tabs.update(newTab.id, { active: true });
 	const groups = await browser.tabGroups.query({ windowId: newTab.windowId });
 	await Promise.all(groups.map(group => browser.tabGroups.update(group.id, {collapsed: group.id !== newTab.groupId  })));
-	let activeGroups = await browser.storage.session.get("activeGroups");
-	if (Object.keys(activeGroups).length === 0) {
-	    activeGroups.activeGroups = {};
-	}
-	activeGroups.activeGroups[newTab.windowId]=newTab.groupId;
-	await browser.storage.session.set(activeGroups)
+	// let activeGroups = await browser.storage.session.get("activeGroups");
+	// console.log("group get",await browser.storage.session.get())
+	// if (Object.keys(activeGroups).length === 0) {
+	//     activeGroups.activeGroups = {};
+	// }
+	// activeGroups.activeGroups[newTab.windowId]=newTab.groupId;
+	// await browser.storage.session.set(activeGroups)
+	// console.log("group set",await browser.storage.session.get());
     }
 }
 
@@ -56,6 +57,13 @@ async function waitForTabs(windowId,timeout=1000) {
 browser.runtime.onInstalled.addListener(async () => {
     const windows = await browser.windows.getAll({populate: true});
     await addUngroupedTabsToDefaultGroup(windows);
+    const tabs = await browser.tabs.query({ active: true });
+    let activeGroups = await browser.storage.session.get("activeGroups");
+    if (Object.keys(activeGroups).length === 0) {
+	activeGroups.activeGroups = {};
+    }
+    tabs.forEach((tab) => { activeGroups.activeGroups[tab.windowId]=tab.groupId });
+    await browser.storage.session.set(activeGroups);
 });
 // when tabs are moved to a new window, add them to a default group
 browser.tabs.onAttached.addListener(async (tabid,attachinfo) => {
@@ -65,50 +73,57 @@ browser.tabs.onAttached.addListener(async (tabid,attachinfo) => {
     await addUngroupedTabsToDefaultGroup([win]);
 });
 
-
-// browser.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-//     console.log("activation start")
-//     mruTabs = await browser.storage.session.get({"mruTabs": []});
-//     Promise.resolve().then(() => {
-// 	browser.sessions.getWindowValue(windowId,"mruTabs").then((mruTabs) => {
-// 	    if (mruTabs === undefined) {mruTabs=[]}
-// 	    mruTabs = mruTabs.filter(id => id !== tabId);
-// 	    mruTabs.unshift(tabId);
-// 	    console.log(mruTabs);
-// 	    browser.sessions.setWindowValue(windowId,"mruTabs",mruTabs);
-// 	});
-//     });
-	
-// });
-
-// browser.tabs.onRemoved.addListener((tabId, removeInfo) => {
-//     console.log(tabId)
-//     if (removeInfo.isWindowClosing) { return }
-//     Promise.resolve().then(() => {
-// 	browser.sessions.getWindowValue(removeInfo.windowId,"mruTabs").then((mruTabs) => {
-// 	    if (mruTabs === undefined) {mruTabs=[]}
-// 	    mruTabs = mruTabs.filter(id => id !== tabId);
-// 	    console.log(mruTabs);
-// 	    browser.sessions.setWindowValue(removeInfo.windowId,"mruTabs",mruTabs);
-// 	});
-//     });
-// });
-
-// Get the last active tab (similar to Firefox Ctrl+Tab MRU)
-// function getPreviousTab() {
-    // return mruTabs.length > 1 ? mruTabs[1] : null;
-// }
-
-
 browser.tabs.onCreated.addListener(async (tab) => {
     // first, check if there are any groups
     const groups = await browser.tabGroups.query({ windowId: tab.windowId });
-    if (groups.length === 0) {
+    if (groups.length === 0) { // newly created window
 	const defaultId = await browser.tabs.group({ tabIds: [tab.id], createProperties: { windowId: tab.windowId }});
 	await browser.tabGroups.update(defaultId, {title: "Default", color: "grey" });
+	let activeGroups = await browser.storage.session.get("activeGroups");
+	if (Object.keys(activeGroups).length === 0) {
+	    activeGroups.activeGroups = {};
+	}
+	activeGroups.activeGroups[tab.windowId]=defaultId
+	await browser.storage.session.set(activeGroups);
     } else {
-	const activeGroups = await browser.storage.session.get("activeGroups");
+	let activeGroups = await browser.storage.session.get("activeGroups");
 	await browser.tabs.group({ groupId: activeGroups.activeGroups[tab.windowId], tabIds: tab.id });
+    }
+});
+
+browser.tabs.onActivated.addListener(async (info) => {
+    console.log("tab activated")
+    const tab = await browser.tabs.get(info.tabId);
+    if (tab.groupId === browser.tabGroups.TAB_GROUP_ID_NONE) {
+	return
+    }
+    if (info.previousTabId) {
+	const oldTab = await browser.tabs.get(info.previousTabId);
+	if (tab.groupId !== oldTab.groupId) {
+	    // switchToGroup({ groupId: tab.groupId });
+	    let activeGroups = await browser.storage.session.get("activeGroups");
+	    if (Object.keys(activeGroups).length === 0) {
+		activeGroups.activeGroups = {};
+	    }
+	    activeGroups.activeGroups[info.windowId]=tab.groupId;
+	    await browser.storage.session.set(activeGroups);
+	    const groups = await browser.tabGroups.query({ windowId: tab.windowId });
+	    await Promise.all(groups.map(group => browser.tabGroups.update(group.id, {collapsed: group.id !== tab.groupId  })));
+	}
+    }
+});
+
+browser.tabs.onMoved.addListener(async (tabId,info) => {
+    const tab = await browser.tabs.get(tabId)
+    if (tab.active) {
+	let activeGroups = await browser.storage.session.get("activeGroups");
+	if (Object.keys(activeGroups).length === 0) {
+	    activeGroups.activeGroups = {};
+	}
+	activeGroups.activeGroups[tab.windowId]=tab.groupId;
+	await browser.storage.session.set(activeGroups);
+	const groups = await browser.tabGroups.query({ windowId: tab.windowId });
+	await Promise.all(groups.map(group => browser.tabGroups.update(group.id, {collapsed: group.id !== tab.groupId  })));
     }
 });
 
