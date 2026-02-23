@@ -2,7 +2,7 @@ let myWindowId;
 let list=document.querySelector("#content");
 
 function updateContent() {
-    console.log("updateC");
+    // console.log("updateC");
     browser.tabGroups.query({windowId: myWindowId})
 	.then((tabGroups) => {
 	    let newList=document.createElement("ul");
