@@ -13,7 +13,8 @@
     "permissions": [
 	"tabs",
 	"tabGroups",
-	"storage"
+	"storage",
+	"tabHide"
     ],
     
     "icons": {

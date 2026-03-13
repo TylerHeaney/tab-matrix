@@ -17,7 +17,8 @@ function updateContent() {
 		    browser.runtime.sendMessage({
 			type: "SWITCH_TO_GROUP",
 			payload: {
-			    groupId: tabGroup.id
+			    groupId: tabGroup.id,
+			    windowId: tabGroup.windowId
 			}
 		    });
 		});
