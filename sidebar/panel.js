@@ -1,7 +1,7 @@
 let myWindowId;
 let list=document.querySelector("#content");
 
-function updateContent() {
+async function updateContent() {
     // console.log("updateC");
     browser.tabGroups.query({windowId: myWindowId})
 	.then((tabGroups) => {
@@ -12,7 +12,7 @@ function updateContent() {
 		button.textContent=tabGroup.title;
 		li.appendChild(button);
 		newList.appendChild(li);
-
+		
 		button.addEventListener("click", () => {
 		    browser.runtime.sendMessage({
 			type: "SWITCH_TO_GROUP",

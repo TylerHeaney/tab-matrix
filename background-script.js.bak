@@ -2,18 +2,18 @@ console.log("Init")
 
 
 async function hideGroup(group) {
-    browser.tabGroups.update(group.id, {collapsed: true});
+    browser.tabGroups.update(group.id, {collapsed: true, title: ''});
     const otherGroupTabs = (await browser.tabs.query({groupId: group.id})).map(tab=>tab.id);
     // browser.tabs.hide(otherGroupTabs);
 }
 
-async function showGroup(group) {
+async function showGroup(group,data) {
     const tabs = await browser.tabs.query({ groupId: group.id });
     if (tabs.length > 0) {
-	// const newTab = tabs[0];
+	const newTab = tabs[0];
 	// browser.tabs.show(tabs.map(tab=>tab.id));
 	// await browser.tabs.update(newTab.id, { active: true });
-	await browser.tabGroups.update(group.id, {collapsed: false});
+	await browser.tabGroups.update(group.id, {collapsed: false, title: data.title});
     }
 }
 
@@ -23,20 +23,20 @@ async function showGroup(group) {
  */
 async function switchToGroup(payload) {
     const groups = await browser.tabGroups.query({ windowId: payload.windowId });
-    // let groupData = (await browser.storage.local.get("groupData")).groupData;
-    // groupData[payload.windowId]=groupData[payload.windowId].map(group => {
-    // 	return {
-    // 	    title: group.title,
-    // 	    id: group.id,
-    // 	    active: group.id==payload.groupId
-    // 	}
-    // });
-    // browser.storage.local.set({groupData: groupData});
+    let groupData = (await browser.storage.local.get("groupData")).groupData;
+    groupData[payload.windowId]=groupData[payload.windowId].map(group => {
+	return {
+	    title: group.title,
+	    id: group.id,
+	    active: group.id==payload.groupId
+	}
+    });
+    browser.storage.local.set({groupData: groupData});
     await Promise.all(groups.map(group => {
 	if (group.id==payload.groupId) {
-	    showGroup(group);
+	    showGroup(group,groupData[payload.windowId].find(data => data.id==group.id));
 	} else {
-	    hideGroup(group);
+	    hideGroup(group,groupData[payload.windowId].find(data => data.id==group.id));
 	}
     }))
 }
@@ -52,9 +52,9 @@ async function addUngroupedTabsToDefaultGroup(windows, isActive) {
 	if (ungroupedTabs.length > 0) {
 	    const defaultId = await browser.tabs.group({ tabIds: ungroupedTabs.map(tab => tab.id), createProperties: { windowId: ungroupedTabs[0].windowId }});
 	    await browser.tabGroups.update(defaultId, {title: "Default", color: "grey" });
-	    // let groupData= (await browser.storage.local.get("groupData")).groupData
-	    // groupData[win.id].push({title: "Default", active: isActive, id: defaultId});
-	    // await browser.storage.local.set({groupData: groupData});
+	    let groupData= (await browser.storage.local.get("groupData")).groupData
+	    groupData[win.id].push({title: "Default", active: isActive, id: defaultId});
+	    await browser.storage.local.set({groupData: groupData});
 	    return defaultId
 	}
     }
@@ -86,28 +86,28 @@ browser.runtime.onInstalled.addListener(async () => {
     let groupData = {}
     const groups = await browser.tabGroups.query({});
     windows.forEach(async (window) => {
-	// groupData[window.id]=groups.filter(group=>group.windowId==window.id).map(group => {
-	//     return { title: group.title,
-	// 	     active: activeGroupIds.some(id => id==group.id),
-	// 	     id: group.id
-	// 	   }
-	// });
-	await switchToGroup({groupId:groups.find(group=>group.collapsed==false && group.windowId==window.id).id,windowId:window.id});
+	groupData[window.id]=groups.filter(group=>group.windowId==window.id).map(group => {
+	    return { title: group.title,
+		     active: activeGroupIds.some(id => id==group.id),
+		     id: group.id
+		   }
+	});
+	await switchToGroup({groupId:groupData[window.id].find(group=>group.active).id,windowId:window.id});
     });
-    // browser.storage.local.set({groupData: groupData})
+    browser.storage.local.set({groupData: groupData})
 });
 
 // when tabs are moved to a new window, add them to a default group
 browser.tabs.onAttached.addListener(async (tabid,attachinfo) => {
     const tabs = await waitForTabs(attachinfo.newWindowId);
     const win = await browser.windows.get(attachinfo.newWindowId,{populate: true});
-    // let groupData = (await browser.storage.local.get("groupData")).groupData;
+    let groupData = (await browser.storage.local.get("groupData")).groupData;
     const groups = await browser.tabGroups.query({windowId: attachinfo.newWindowId});
     if (groups.length===0) {
 	const defaultId=addUngroupedTabsToDefaultGroup([win],true);
     } else {
-	// let winGroupData = groupData[win.id].find(data=>data.active)
-	await browser.tabs.group({groupId: groups.find(group=>group.collapsed==false).id, tabIds: tabid});
+	let winGroupData = groupData[win.id].find(data=>data.active)
+	await browser.tabs.group({groupId: winGroupData.id, tabIds: tabid});
     }
 });
 
@@ -117,13 +117,13 @@ browser.tabs.onCreated.addListener(async (tab) => {
     if (groups.length === 0) { // newly created window
 	const defaultId = await browser.tabs.group({ tabIds: [tab.id], createProperties: { windowId: tab.windowId }});
 	await browser.tabGroups.update(defaultId, {title: "Default", color: "grey" });
-	// let groupData = (await browser.storage.local.get("groupData")).groupData;
-	// groupData[tab.windowId].push({title: "Default", active: true, id: defaultId});
-	// await browser.storage.local.set({groupData: groupData});
+	let groupData = (await browser.storage.local.get("groupData")).groupData;
+	groupData[tab.windowId].push({title: "Default", active: true, id: defaultId});
+	await browser.storage.local.set({groupData: groupData});
     } else {
-	// let groupData = (await browser.storage.local.get("groupData")).groupData;
-	// let activeGroup = groupData[tab.windowId].find(group => group.active)
-	await browser.tabs.group({ groupId: groups.find(group=>group.collapsed==false).id, tabIds: tab.id });
+	let groupData = (await browser.storage.local.get("groupData")).groupData;
+	let activeGroup = groupData[tab.windowId].find(group => group.active)
+	await browser.tabs.group({ groupId: activeGroup.id, tabIds: tab.id });
     }
 });
 
@@ -181,8 +181,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     case "SWITCH_TO_GROUP":
 	const tabs = await browser.tabs.query({groupId: message.payload.groupId})
 	console.assert(tabs.length>0)
-	await browser.tabGroups.update(message.payload.groupId,{collapsed:false})
-	// await browser.tabs.update(tabs[0].id,{active: true})
+	await browser.tabs.update(tabs[0].id,{active: true})
 	break;
     default:
 	console.warn("Unknown message:", message);
@@ -190,39 +189,31 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
 });
 
 browser.tabGroups.onUpdated.addListener(async (group) => {
-    if (group.collapsed==false) {
-	// switchToGroup({groupId:group.id})
-	const tabs = await browser.tabs.query({ groupId: group.id });
-	const newTab = tabs[0];
-	await browser.tabs.update(newTab.id, { active: true });
+    let groupData = (await browser.storage.local.get("groupData")).groupData
+    let changedGroupData = groupData[group.windowId].find(data => data.id==group.id)
+    if (changedGroupData.title === group.title) {
+	console.log("same")
     } else {
+	// console.log(changedGroupData.title)
+	// console.log(group.title)
+	groupData[group.windowId]=groupData[group.windowId].map(gd => {
+	    if (group.id===gd.id) {
+		return {
+		    title: group.title,
+		    id: gd.id,
+		    active: gd.active
+		}
+	    } else {
+		return {
+		    title: gd.title,
+		    id: gd.id,
+		    active: gd.active
+		}
+	    }
+	});
+	console.log(groupData)
+	await browser.storage.local.set({groupData: groupData});
     }
-//     let groupData = (await browser.storage.local.get("groupData")).groupData
-//     let changedGroupData = groupData[group.windowId].find(data => data.id==group.id)
-    // if (changedGroupData.title === group.title) {
-// 	console.log("same")
-//     } else {
-// 	// console.log(changedGroupData.title)
-// 	// console.log(group.title)
-// 	groupData[group.windowId]=groupData[group.windowId].map(gd => {
-// 	    if (group.id===gd.id) {
-// 		return {
-// 		    title: group.title,
-// 		    id: gd.id,
-// 		    active: gd.active
-// 		}
-// 	    } else {
-// 		return {
-// 		    title: gd.title,
-// 		    id: gd.id,
-// 		    active: gd.active
-// 		}
-// 	    }
-// 	});
-// 	console.log(groupData)
-// 	await browser.storage.local.set({groupData: groupData});
-//     }
-//     // groupData[win.id].push({title: "Default", active: isActive, id: defaultId});
-//     // await browser.storage.local.set({groupData: groupData});
+    // groupData[win.id].push({title: "Default", active: isActive, id: defaultId});
+    // await browser.storage.local.set({groupData: groupData});
 });
-    

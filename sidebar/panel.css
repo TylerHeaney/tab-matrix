@@ -8,7 +8,18 @@ html, body {
 body {
   height: 90%;
   font: caption;
-  background-color: #F4F7F8;
+  background-color: black; 
+}
+
+ul {
+    background-color: white;
+}
+
+li {
+}
+
+button {
+
 }
 
 p {
@@ -23,7 +34,7 @@ p {
 }
 
 #content[contenteditable=true] {
-  background-color: white;
+  background-color: black;
   transition: background-color .2s ease-in;
 }
 
